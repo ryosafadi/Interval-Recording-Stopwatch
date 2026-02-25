@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Interval Recording Stopwatch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap"
+    rel="stylesheet">
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d2e;
+      --surface2: #22263a;
+      --border: #2e3350;
+      --accent: #6c63ff;
+      --accent-glow: rgba(108, 99, 255, 0.35);
+      --accent2: #4ecdc4;
+      --danger: #ff6b6b;
+      --danger-glow: rgba(255, 107, 107, 0.3);
+      --success: #51cf66;
+      --text: #e8eaf0;
+      --text-muted: #7e85a3;
+      --text-dim: #4a5070;
+      --radius: 18px;
+      --radius-sm: 10px;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      overscroll-behavior: none;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 20px 48px;
+      gap: 0;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+
+    header h1 {
+      font-size: clamp(1.3rem, 4vw, 1.75rem);
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #b0a8ff 0%, #6c63ff 50%, #4ecdc4 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    header p {
+      margin-top: 6px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      letter-spacing: 0.3px;
+    }
+
+    /* ── Card ── */
+    .card {
+      width: 100%;
+      max-width: 480px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      margin-bottom: 20px;
+    }
+
+    /* ── Setup Panel ── */
+    #setup-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .input-group label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .input-row input[type="text"] {
+      flex: 1;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 600;
+      padding: 14px 18px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .input-row input[type="text"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .input-row input[type="text"]::placeholder {
+      color: var(--text-dim);
+      font-weight: 400;
+    }
+
+    .input-unit {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .mode-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 30px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      transition: all 0.3s ease;
+    }
+
+    .mode-badge.interval {
+      background: rgba(108, 99, 255, 0.18);
+      color: #b0a8ff;
+      border: 1px solid rgba(108, 99, 255, 0.35);
+    }
+
+    .mode-badge.frequency {
+      background: rgba(78, 205, 196, 0.18);
+      color: #4ecdc4;
+      border: 1px solid rgba(78, 205, 196, 0.35);
+    }
+
+    .mode-badge.stopwatch {
+      background: rgba(126, 133, 163, 0.18);
+      color: #7e85a3;
+      border: 1px solid rgba(126, 133, 163, 0.35);
+    }
+
+    .mode-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+    }
+
+    .mode-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* ── Stopwatch Display ── */
+    #stopwatch-panel {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    #stopwatch-panel.visible {
+      display: flex;
+    }
+
+    .timer-display {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: clamp(4rem, 18vw, 7rem);
+      font-weight: 700;
+      letter-spacing: 4px;
+      color: var(--text);
+      line-height: 1;
+      text-align: center;
+      transition: color 0.3s;
+    }
+
+    .timer-display.flash {
+      color: var(--accent2);
+    }
+
+    .interval-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .interval-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      opacity: 0;
+      transition: opacity 0.1s;
+    }
+
+    .interval-dot.pulse {
+      opacity: 1;
+      animation: dotpulse 0.4s ease forwards;
+    }
+
+    @keyframes dotpulse {
+      0% {
+        transform: scale(1);
+        opacity: 1;
+      }
+
+      100% {
+        transform: scale(2);
+        opacity: 0;
+      }
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-weight: 700;
+      transition: all 0.15s ease;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn:active {
+      transform: scale(0.95);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #6c63ff, #5a52e0);
+      color: #fff;
+      font-size: 1.1rem;
+      padding: 18px 40px;
+      border-radius: 50px;
+      box-shadow: 0 4px 24px var(--accent-glow);
+      width: 100%;
+      letter-spacing: 0.3px;
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 6px 32px var(--accent-glow);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.97) translateY(0);
+    }
+
+    .btn-primary.danger {
+      background: linear-gradient(135deg, #ff6b6b, #e05252);
+      box-shadow: 0 4px 24px var(--danger-glow);
+    }
+
+    .btn-primary.danger:hover {
+      box-shadow: 0 6px 32px var(--danger-glow);
+    }
+
+    .btn-counter {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      font-size: 2.5rem;
+      flex-shrink: 0;
+      color: #fff;
+      transition: all 0.12s ease;
+    }
+
+    .btn-plus {
+      background: linear-gradient(135deg, #6c63ff, #5a52e0);
+      box-shadow: 0 4px 20px var(--accent-glow);
+    }
+
+    .btn-minus {
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      color: var(--text-muted);
+      box-shadow: none;
+    }
+
+    .btn-minus:active {
+      background: var(--border);
+    }
+
+    .btn-data {
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      color: var(--text);
+      font-size: 1rem;
+      padding: 16px 36px;
+      border-radius: 50px;
+      width: 100%;
+    }
+
+    .btn-data:hover {
+      border-color: var(--accent);
+      color: #b0a8ff;
+    }
+
+    .counter-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+      width: 100%;
+    }
+
+    .counter-hint {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      letter-spacing: 0.3px;
+    }
+
+    /* ── Data Panel ── */
+    #data-panel {
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    #data-panel.visible {
+      display: flex;
+    }
+
+    .data-summary {
+      text-align: center;
+    }
+
+    .data-summary .fraction {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--accent2);
+    }
+
+    .data-summary .fraction-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .data-table-wrap {
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    thead th {
+      background: var(--surface2);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 12px 16px;
+      text-align: left;
+    }
+
+    tbody tr {
+      border-top: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+
+    tbody tr:hover {
+      background: var(--surface2);
+    }
+
+    tbody td {
+      padding: 13px 16px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
+    }
+
+    .press-plus {
+      color: #b0a8ff;
+      font-weight: 700;
+    }
+
+    .press-minus {
+      color: var(--text-muted);
+    }
+
+    .press-none {
+      color: var(--text-dim);
+      font-style: italic;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.82rem;
+    }
+
+    .btn-reset {
+      background: transparent;
+      border: 1.5px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 12px 24px;
+      border-radius: 50px;
+      width: 100%;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-reset:hover {
+      border-color: var(--text-muted);
+      color: var(--text);
+    }
+
+    /* ── Divider ── */
+    .divider {
+      width: 100%;
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 4px 0;
+    }
+
+    /* ── Responsive tweaks for tablets ── */
+    @media (min-width: 600px) {
+      body {
+        padding: 48px 32px 64px;
+      }
+
+      .btn-counter {
+        width: 120px;
+        height: 120px;
+        font-size: 3rem;
+      }
+
+      .counter-row {
+        gap: 48px;
+      }
+    }
+
+    /* ── Hide number input spinners ── */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      appearance: none;
+      display: none;
+      margin: 0;
+    }
+
+    input[type=number] {
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <h1>Interval Recording Stopwatch</h1>
+  </header>
+
+  <!-- ── Setup Card ── -->
+  <div class="card" id="setup-card">
+    <div id="setup-panel">
+      <div class="input-group">
+        <label>Duration <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <div class="input-row">
+          <input type="text" inputmode="numeric" pattern="[0-9]*" id="duration-input" placeholder="e.g. 300"
+            oninput="this.value=this.value.replace(/[^0-9]/g,'')" />
+          <span class="input-unit">seconds</span>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label>Interval <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <div class="input-row">
+          <input type="text" inputmode="numeric" pattern="[0-9]*" id="interval-input" placeholder="e.g. 30"
+            oninput="this.value=this.value.replace(/[^0-9]/g,'')" />
+          <span class="input-unit">seconds</span>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="mode-row">
+        <span class="mode-label">Mode</span>
+        <span class="mode-badge stopwatch" id="mode-badge">⬡ Stopwatch</span>
+      </div>
+
+      <button class="btn btn-primary" id="start-btn" onclick="startStopwatch()">▶ Start</button>
+    </div>
+  </div>
+
+  <!-- ── Stopwatch Card ── -->
+  <div class="card" id="stopwatch-card" style="display:none;">
+    <div id="stopwatch-panel" class="visible">
+      <div>
+        <div class="timer-display" id="timer-display">00:00</div>
+      </div>
+
+      <div class="interval-indicator" id="interval-indicator" style="display:none;">
+        <div class="interval-dot" id="interval-dot"></div>
+        <span id="interval-label">Next interval: 0s</span>
+      </div>
+
+      <button class="btn btn-primary danger" id="stop-btn" onclick="stopStopwatch()">■ Stop</button>
+
+      <div id="final-prompt" style="display:none; text-align:center; padding: 6px 0;">
+        <p style="font-size:0.95rem; font-weight:700; color:#b0a8ff; margin-bottom:4px;">Session complete!</p>
+        <p style="font-size:0.8rem; color:var(--text-muted);">Record your final interval observation</p>
+      </div>
+
+      <hr class="divider" style="width:100%;" />
+
+      <p class="counter-hint" id="obs-hint">Record an observation below</p>
+      <div class="counter-row" id="counter-row">
+        <button class="btn btn-counter btn-minus" id="minus-btn" ontouchstart="handleMinus(event)"
+          onclick="handleMinus(event)">−</button>
+        <button class="btn btn-counter btn-plus" id="plus-btn" ontouchstart="handlePlus(event)"
+          onclick="handlePlus(event)">+</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Data Card ── -->
+  <div class="card" id="data-card" style="display:none;">
+    <div id="data-panel" class="visible">
+      <div class="data-summary" id="data-summary"></div>
+      <hr class="divider" />
+      <div class="data-table-wrap" id="data-table-wrap"></div>
+      <button class="btn btn-reset" onclick="resetAll()">↺ New Session</button>
+    </div>
+  </div>
+
+  <script>
+    // ─── State ───────────────────────────────────────────────────
+    let timerInterval = null;
+    let elapsedSeconds = 0;
+    let durationSec = null;
+    let intervalSec = null;
+    let mode = 'stopwatch'; // 'interval' | 'frequency' | 'stopwatch'
+    let counter = 0;
+    let lastTouchHandled = false; // prevent double-fire on touch+click
+
+    // Interval Mode: array of { label, press }
+    // Frequency Mode: array of { timestamp, press }
+    let records = [];
+
+    // Interval Mode tracking
+    // pendingIntervalLabel: the label of the interval that just beeped,
+    // waiting for the user to press + or − as their response.
+    let pendingIntervalLabel = null;
+    let currentIntervalPress = null; // last press since most recent beep
+    let awaitingFinalPress = false;  // true when auto-stop fired on a beep boundary
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // ─── Audio ──────────────────────────────────────────────────
+    function playBeep(freq = 660, duration = 0.15, delay = 0) {
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      oscillator.type = 'sine';
+      oscillator.frequency.value = freq;
+      const start = audioCtx.currentTime + delay;
+      gainNode.gain.setValueAtTime(0, start);
+      gainNode.gain.linearRampToValueAtTime(0.28, start + 0.01);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, start + duration);
+      oscillator.start(start);
+      oscillator.stop(start + duration + 0.05);
+    }
+
+    function playIntervalBeep() {
+      playBeep(660, 0.15, 0);
+      // Flash the interval dot
+      const dot = document.getElementById('interval-dot');
+      dot.classList.remove('pulse');
+      void dot.offsetWidth;
+      dot.classList.add('pulse');
+      // Flash timer
+      const display = document.getElementById('timer-display');
+      display.classList.add('flash');
+      setTimeout(() => display.classList.remove('flash'), 300);
+    }
+
+    function playEndBeeps() {
+      // 3 quick beeps — tighter spacing for a snappier finish
+      playBeep(880, 0.14, 0);
+      playBeep(880, 0.14, 0.16);
+      playBeep(880, 0.14, 0.32);
+    }
+
+    // ─── Mode Detection ──────────────────────────────────────────
+    function detectMode() {
+      const d = parseInt(document.getElementById('duration-input').value) || 0;
+      const i = parseInt(document.getElementById('interval-input').value) || 0;
+      if (i > 0) return 'interval';
+      if (d > 0 && i === 0) return 'frequency';
+      return 'stopwatch';
+    }
+
+    function updateModeBadge() {
+      const m = detectMode();
+      const badge = document.getElementById('mode-badge');
+      badge.className = 'mode-badge';
+      if (m === 'interval') {
+        badge.classList.add('interval');
+        badge.textContent = '◈ Interval';
+      } else if (m === 'frequency') {
+        badge.classList.add('frequency');
+        badge.textContent = '◉ Frequency';
+      } else {
+        badge.classList.add('stopwatch');
+        badge.textContent = '⬡ Stopwatch';
+      }
+    }
+
+    document.getElementById('duration-input').addEventListener('input', updateModeBadge);
+    document.getElementById('interval-input').addEventListener('input', updateModeBadge);
+
+    // ─── Timer Formatting ─────────────────────────────────────────
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60).toString().padStart(2, '0');
+      const s = (sec % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    // ─── Start/Stop ───────────────────────────────────────────────
+    function startStopwatch() {
+      // Resume AudioContext if suspended (required on mobile)
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      durationSec = parseInt(document.getElementById('duration-input').value) || null;
+      intervalSec = parseInt(document.getElementById('interval-input').value) || null;
+      mode = detectMode();
+      counter = 0;
+      records = [];
+      elapsedSeconds = 0;
+      pendingIntervalLabel = null;
+      currentIntervalPress = null;
+      awaitingFinalPress = false;
+
+      // Hide setup, show stopwatch
+      document.getElementById('setup-card').style.display = 'none';
+      document.getElementById('stopwatch-card').style.display = 'block';
+      document.getElementById('data-card').style.display = 'none';
+      document.getElementById('timer-display').textContent = '00:00';
+
+      // Setup interval indicator
+      const indicator = document.getElementById('interval-indicator');
+      if (intervalSec) {
+        indicator.style.display = 'flex';
+        updateIntervalLabel();
+      } else {
+        indicator.style.display = 'none';
+      }
+
+      // Show/hide minus button and counter row based on mode
+      const isStopwatch = (mode === 'stopwatch');
+      document.getElementById('minus-btn').style.display = (mode === 'frequency') ? 'none' : '';
+      document.getElementById('counter-row').style.display = isStopwatch ? 'none' : '';
+      document.getElementById('obs-hint').style.display = isStopwatch ? 'none' : '';
+
+      timerInterval = setInterval(tick, 1000);
+    }
+
+    function tick() {
+      elapsedSeconds++;
+      document.getElementById('timer-display').textContent = formatTime(elapsedSeconds);
+
+      // ── Interval beep ──
+      // Skip if this tick also triggers auto-stop — only the triple end beep should play
+      const isDurationEnd = durationSec && elapsedSeconds >= durationSec;
+      if (intervalSec && elapsedSeconds % intervalSec === 0) {
+        if (!isDurationEnd) playIntervalBeep();
+
+        if (mode === 'interval') {
+          // Commit any previously pending interval with whatever was pressed
+          if (pendingIntervalLabel !== null) {
+            records.push({ label: pendingIntervalLabel, press: currentIntervalPress });
+            if (currentIntervalPress === 'plus') counter++;
+          }
+          // The interval that just ended is now pending — user responds after the beep
+          pendingIntervalLabel = `${formatTime(elapsedSeconds - intervalSec)} – ${formatTime(elapsedSeconds)}`;
+          currentIntervalPress = null;
+        }
+
+        if (!isDurationEnd) updateIntervalLabel();
+      }
+
+      // ── Duration reached ──
+      if (isDurationEnd) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        playEndBeeps();
+
+        if (mode === 'interval' && pendingIntervalLabel !== null) {
+          // Beep fired at the same moment as auto-stop: wait for the user's final press
+          awaitingFinalPress = true;
+          document.getElementById('stop-btn').style.display = 'none';
+          document.getElementById('final-prompt').style.display = 'block';
+        } else {
+          finishStopwatch(false);
+        }
+      }
+    }
+
+    function updateIntervalLabel() {
+      if (!intervalSec) return;
+      const nextBeep = intervalSec - (elapsedSeconds % intervalSec);
+      document.getElementById('interval-label').textContent =
+        `Next interval in ${nextBeep}s`;
+    }
+
+    function stopStopwatch() {
+      // Commit any pending interval (user responded after the last beep)
+      if (mode === 'interval' && pendingIntervalLabel !== null) {
+        records.push({ label: pendingIntervalLabel, press: currentIntervalPress });
+        if (currentIntervalPress === 'plus') counter++;
+        pendingIntervalLabel = null;
+      }
+      finishStopwatch(false);
+    }
+
+    function finishStopwatch(autoStopped) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      if (autoStopped) playEndBeeps();
+
+      document.getElementById('stopwatch-card').style.display = 'none';
+
+      if (mode === 'stopwatch') {
+        // No data to show — go straight back to setup
+        resetAll();
+        return;
+      }
+
+      buildDataPanel();
+      document.getElementById('data-card').style.display = 'block';
+    }
+
+    // ─── Counter Buttons ──────────────────────────────────────────
+    function handlePlus(e) {
+      if (e.type === 'click' && e.pointerType === '') return; // fired from touch already
+      if (e.type === 'touchstart') { e.preventDefault(); }
+
+      if (awaitingFinalPress) {
+        currentIntervalPress = 'plus';
+        commitFinalPress();
+        return;
+      }
+      if (mode === 'interval') {
+        currentIntervalPress = 'plus';
+      } else if (mode === 'frequency') {
+        counter++;
+        records.push({ timestamp: formatTime(elapsedSeconds), press: 'plus' });
+      }
+      flashBtn('plus-btn');
+    }
+
+    function handleMinus(e) {
+      if (e.type === 'click' && e.pointerType === '') return;
+      if (e.type === 'touchstart') { e.preventDefault(); }
+
+      if (awaitingFinalPress) {
+        currentIntervalPress = 'minus';
+        commitFinalPress();
+        return;
+      }
+      if (mode === 'interval') {
+        currentIntervalPress = 'minus';
+      } else if (mode === 'frequency') {
+        records.push({ timestamp: formatTime(elapsedSeconds), press: 'minus' });
+      }
+      flashBtn('minus-btn');
+    }
+
+    function commitFinalPress() {
+      flashBtn(currentIntervalPress === 'plus' ? 'plus-btn' : 'minus-btn');
+      records.push({ label: pendingIntervalLabel, press: currentIntervalPress });
+      if (currentIntervalPress === 'plus') counter++;
+      pendingIntervalLabel = null;
+      awaitingFinalPress = false;
+      // Restore UI state before transitioning
+      document.getElementById('stop-btn').style.display = '';
+      document.getElementById('final-prompt').style.display = 'none';
+      finishStopwatch(false);
+    }
+
+    function flashBtn(id) {
+      const btn = document.getElementById(id);
+      btn.style.transform = 'scale(0.9)';
+      setTimeout(() => (btn.style.transform = ''), 120);
+    }
+
+    // ─── Data Panel ───────────────────────────────────────────────
+    function buildDataPanel() {
+      const summaryEl = document.getElementById('data-summary');
+      const tableWrap = document.getElementById('data-table-wrap');
+
+      // Summary
+      let summaryHTML = '';
+      if (mode === 'interval') {
+        const totalIntervals = records.length;
+        summaryHTML = `
+        <div class="fraction">${counter} / ${totalIntervals}</div>
+        <div class="fraction-label">"+" Presses / Total Intervals</div>`;
+      } else if (mode === 'frequency') {
+        summaryHTML = `
+        <div class="fraction">${counter}</div>
+        <div class="fraction-label">Total "+" Presses</div>`;
+      }
+      summaryEl.innerHTML = summaryHTML;
+
+      // Table
+      let headerLeft, rows;
+      if (mode === 'interval') {
+        headerLeft = 'Interval';
+        rows = records.map(r => {
+          let pressCell;
+          if (r.press === 'plus') pressCell = `<td class="press-plus">+</td>`;
+          else if (r.press === 'minus') pressCell = `<td class="press-minus">−</td>`;
+          else pressCell = `<td class="press-none">no press</td>`;
+          return `<tr><td>${r.label}</td>${pressCell}</tr>`;
+        }).join('');
+      } else {
+        // Frequency Mode: timestamp only, no button column
+        rows = records.map(r => `<tr><td>${r.timestamp}</td></tr>`).join('');
+      }
+
+      if (!rows) rows = `<tr><td colspan="2" style="color:var(--text-dim);text-align:center;padding:20px;">No button presses recorded</td></tr>`;
+
+      const headerHTML = mode === 'interval'
+        ? `<thead><tr><th>Interval</th><th>Button</th></tr></thead>`
+        : `<thead><tr><th>Timestamp</th></tr></thead>`;
+
+      tableWrap.innerHTML = `
+      <table>
+        ${headerHTML}
+        <tbody>${rows}</tbody>
+      </table>`;
+    }
+
+    // ─── Reset ────────────────────────────────────────────────────
+    function resetAll() {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      elapsedSeconds = 0;
+      counter = 0;
+      records = [];
+      pendingIntervalLabel = null;
+      currentIntervalPress = null;
+      awaitingFinalPress = false;
+
+      document.getElementById('stop-btn').style.display = '';
+      document.getElementById('final-prompt').style.display = 'none';
+      document.getElementById('setup-card').style.display = 'block';
+      document.getElementById('stopwatch-card').style.display = 'none';
+      document.getElementById('data-card').style.display = 'none';
+      document.getElementById('timer-display').textContent = '00:00';
+    }
+  </script>
+</body>
+
+</html>
