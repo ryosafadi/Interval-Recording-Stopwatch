@@ -223,9 +223,19 @@
     .interval-indicator {
       display: flex;
       align-items: center;
+      justify-content: center;
+      width: 100%;
       gap: 8px;
       font-size: 0.8rem;
       color: var(--text-muted);
+    }
+
+    /* Invisible right spacer = dot width, so the label text is truly centered */
+    .interval-indicator::after {
+      content: '';
+      display: inline-block;
+      width: 8px;
+      flex-shrink: 0;
     }
 
     .interval-dot {
