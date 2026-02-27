@@ -294,13 +294,81 @@
       transform: scale(0.97) translateY(0);
     }
 
-    .btn-primary.danger {
-      background: linear-gradient(135deg, #ff6b6b, #e05252);
-      box-shadow: 0 4px 24px var(--danger-glow);
+    /* ── Action row (pause + reset side by side) ── */
+    .action-row {
+      display: flex;
+      gap: 12px;
+      width: 100%;
     }
 
-    .btn-primary.danger:hover {
-      box-shadow: 0 6px 32px var(--danger-glow);
+    .btn-pause {
+      flex: 1;
+      background: linear-gradient(135deg, #6c63ff, #5a52e0);
+      color: #fff;
+      font-size: 1.1rem;
+      padding: 18px 24px;
+      border-radius: 50px;
+      box-shadow: 0 4px 24px var(--accent-glow);
+      letter-spacing: 0.3px;
+    }
+
+    .btn-pause:hover {
+      box-shadow: 0 6px 32px var(--accent-glow);
+      transform: translateY(-1px);
+    }
+
+    .btn-pause.resuming {
+      background: linear-gradient(135deg, #51cf66, #3aab52);
+      box-shadow: 0 4px 24px rgba(81, 207, 102, 0.35);
+    }
+
+    .btn-reset-sm {
+      flex: 0 0 auto;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      color: var(--text-muted);
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 18px 22px;
+      border-radius: 50px;
+    }
+
+    .btn-reset-sm:hover {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .btn-show-data {
+      width: 100%;
+      background: rgba(78, 205, 196, 0.15);
+      border: 1.5px solid rgba(78, 205, 196, 0.4);
+      color: #4ecdc4;
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 14px 24px;
+      border-radius: 50px;
+    }
+
+    .btn-show-data:hover {
+      background: rgba(78, 205, 196, 0.25);
+    }
+
+    .btn-back {
+      width: 100%;
+      background: transparent;
+      border: 1.5px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 12px 24px;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-back:hover {
+      border-color: var(--accent);
+      color: #b0a8ff;
     }
 
     .btn-counter {
@@ -553,14 +621,20 @@
         <span id="interval-label">Next interval: 0s</span>
       </div>
 
-      <button class="btn btn-primary danger" id="stop-btn" onclick="stopStopwatch()">■ Stop</button>
+      <div class="action-row" id="action-row">
+        <button class="btn btn-pause" id="pause-resume-btn" onclick="pauseResumeStopwatch()">⏸ Pause</button>
+        <button class="btn btn-reset-sm" id="reset-btn" onclick="resetAll()">↺ Reset</button>
+      </div>
+
+      <button class="btn btn-show-data" id="show-data-btn" style="display:none;" onclick="showDataWhilePaused()">📊 Show
+        Data</button>
 
       <div id="final-prompt" style="display:none; text-align:center; padding: 6px 0;">
         <p style="font-size:0.95rem; font-weight:700; color:#b0a8ff; margin-bottom:4px;">Session complete!</p>
         <p style="font-size:0.8rem; color:var(--text-muted);">Record your final interval observation</p>
       </div>
 
-      <hr class="divider" style="width:100%;" />
+      <hr class="divider" id="counter-divider" style="width:100%;" />
 
       <p class="counter-hint" id="obs-hint">Record an observation below</p>
       <div class="counter-row" id="counter-row">
@@ -578,6 +652,8 @@
       <div class="data-summary" id="data-summary"></div>
       <hr class="divider" />
       <div class="data-table-wrap" id="data-table-wrap"></div>
+      <button class="btn btn-back" id="back-btn" style="display:none;" onclick="backToPausedStopwatch()">← Back to
+        Stopwatch</button>
       <button class="btn btn-reset" onclick="resetAll()">↺ New Session</button>
     </div>
   </div>
@@ -592,16 +668,14 @@
     let counter = 0;
     let lastTouchHandled = false; // prevent double-fire on touch+click
 
-    // Interval Mode: array of { label, press }
-    // Frequency Mode: array of { timestamp, press }
+    // Interval Mode: array of { label, press: 'plus' | 'minus' | null }
+    // press starts as null; updated in-place when user presses a button
     let records = [];
 
-    // Interval Mode tracking
-    // pendingIntervalLabel: the label of the interval that just beeped,
-    // waiting for the user to press + or − as their response.
-    let pendingIntervalLabel = null;
-    let currentIntervalPress = null; // last press since most recent beep
-    let awaitingFinalPress = false;  // true when auto-stop fired on a beep boundary
+    // Tracks the most recent button press since the last beep (for info only)
+    let currentIntervalPress = null;
+    let isPaused = false;            // true while session is paused
+    let startTimestamp = null;       // wall-clock time the session started (ms)
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -669,6 +743,9 @@
     document.getElementById('duration-input').addEventListener('input', updateModeBadge);
     document.getElementById('interval-input').addEventListener('input', updateModeBadge);
 
+    // Sync the mode badge to whatever values the browser restores on refresh
+    window.addEventListener('load', () => updateModeBadge());
+
     // ─── Timer Formatting ─────────────────────────────────────────
     function formatTime(sec) {
       const m = Math.floor(sec / 60).toString().padStart(2, '0');
@@ -690,6 +767,7 @@
       pendingIntervalLabel = null;
       currentIntervalPress = null;
       awaitingFinalPress = false;
+      isPaused = false;
 
       // Hide setup, show stopwatch
       document.getElementById('setup-card').style.display = 'none';
@@ -709,52 +787,69 @@
       // Show/hide minus button and counter row based on mode
       const isStopwatch = (mode === 'stopwatch');
       document.getElementById('minus-btn').style.display = (mode === 'frequency') ? 'none' : '';
+      document.getElementById('counter-divider').style.display = isStopwatch ? 'none' : '';
       document.getElementById('counter-row').style.display = isStopwatch ? 'none' : '';
       document.getElementById('obs-hint').style.display = isStopwatch ? 'none' : '';
 
+      startTimestamp = Date.now();
+      // 1-second interval for accurate foreground display; visibilitychange handles background catch-up
       timerInterval = setInterval(tick, 1000);
     }
 
-    function tick() {
-      elapsedSeconds++;
-      document.getElementById('timer-display').textContent = formatTime(elapsedSeconds);
+    function tick(targetElapsed) {
+      if (startTimestamp === null) return;
+      // Default: advance exactly 1 second (foreground; immune to Date.now() precision)
+      const nowElapsed = (targetElapsed !== undefined) ? targetElapsed : elapsedSeconds + 1;
+      if (nowElapsed <= elapsedSeconds) return;
 
-      // ── Interval beep ──
-      // Skip if this tick also triggers auto-stop — only the triple end beep should play
-      const isDurationEnd = durationSec && elapsedSeconds >= durationSec;
-      if (intervalSec && elapsedSeconds % intervalSec === 0) {
-        if (!isDurationEnd) playIntervalBeep();
+      for (let s = elapsedSeconds + 1; s <= nowElapsed; s++) {
+        elapsedSeconds = s;
+        const isLive = (s === nowElapsed); // only the latest second triggers audio/UI
+        document.getElementById('timer-display').textContent = formatTime(s);
 
-        if (mode === 'interval') {
-          // Commit any previously pending interval with whatever was pressed
-          if (pendingIntervalLabel !== null) {
-            records.push({ label: pendingIntervalLabel, press: currentIntervalPress });
-            if (currentIntervalPress === 'plus') counter++;
+        // ── Interval beep ──
+        const isDurationEnd = durationSec && s >= durationSec;
+        if (intervalSec && s % intervalSec === 0) {
+          if (!isDurationEnd && isLive) playIntervalBeep();
+
+          if (mode === 'interval') {
+            // Push a new record immediately with press = null;
+            // the user updates it in-place by pressing + or −
+            records.push({
+              label: `${formatTime(s - intervalSec)} – ${formatTime(s)}`,
+              press: null
+            });
+            currentIntervalPress = null;
           }
-          // The interval that just ended is now pending — user responds after the beep
-          pendingIntervalLabel = `${formatTime(elapsedSeconds - intervalSec)} – ${formatTime(elapsedSeconds)}`;
-          currentIntervalPress = null;
+
+          if (!isDurationEnd && isLive) updateIntervalLabel();
+        } else if (isLive && intervalSec) {
+          updateIntervalLabel();
         }
 
-        if (!isDurationEnd) updateIntervalLabel();
-      }
-
-      // ── Duration reached ──
-      if (isDurationEnd) {
-        clearInterval(timerInterval);
-        timerInterval = null;
-        playEndBeeps();
-
-        if (mode === 'interval' && pendingIntervalLabel !== null) {
-          // Beep fired at the same moment as auto-stop: wait for the user's final press
-          awaitingFinalPress = true;
-          document.getElementById('stop-btn').style.display = 'none';
-          document.getElementById('final-prompt').style.display = 'block';
-        } else {
-          finishStopwatch(false);
+        // ── Duration reached ──
+        if (isDurationEnd) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+          startTimestamp = null;
+          playEndBeeps();
+          if (mode === 'stopwatch') {
+            finishStopwatch(false);
+          } else {
+            autoStopPause();
+          }
+          return;
         }
       }
     }
+
+    // When returning from background, use wall clock to compute and catch up missed seconds
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && timerInterval !== null && startTimestamp !== null) {
+        const nowElapsed = Math.floor((Date.now() - startTimestamp) / 1000);
+        if (nowElapsed > elapsedSeconds) tick(nowElapsed);
+      }
+    });
 
     function updateIntervalLabel() {
       if (!intervalSec) return;
@@ -763,19 +858,58 @@
         `Next interval in ${nextBeep}s`;
     }
 
-    function stopStopwatch() {
-      // Commit any pending interval (user responded after the last beep)
-      if (mode === 'interval' && pendingIntervalLabel !== null) {
-        records.push({ label: pendingIntervalLabel, press: currentIntervalPress });
-        if (currentIntervalPress === 'plus') counter++;
-        pendingIntervalLabel = null;
+    // ─── Auto-Stop Pause (duration reached, non-Stopwatch mode) ────────────────
+    // Pauses the timer in-place; user can still Resume or view Show Data.
+    function autoStopPause() {
+      isPaused = true;
+      durationSec = null; // prevent re-triggering if user resumes after auto-stop
+      const btn = document.getElementById('pause-resume-btn');
+      btn.textContent = '▶ Resume';
+      btn.classList.add('resuming');
+      document.getElementById('show-data-btn').style.display = '';
+    }
+    function pauseResumeStopwatch() {
+      if (isPaused) {
+        // Resume
+        isPaused = false;
+        startTimestamp = Date.now() - (elapsedSeconds * 1000);
+        timerInterval = setInterval(tick, 1000);
+        const btn = document.getElementById('pause-resume-btn');
+        btn.textContent = '⏸ Pause';
+        btn.classList.remove('resuming');
+        document.getElementById('show-data-btn').style.display = 'none';
+      } else {
+        // Pause
+        isPaused = true;
+        clearInterval(timerInterval);
+        timerInterval = null;
+        const btn = document.getElementById('pause-resume-btn');
+        btn.textContent = '▶ Resume';
+        btn.classList.add('resuming');
+        if (mode !== 'stopwatch') {
+          document.getElementById('show-data-btn').style.display = '';
+        }
       }
-      finishStopwatch(false);
+    }
+
+    function showDataWhilePaused() {
+      buildDataPanel(true);
+      document.getElementById('stopwatch-card').style.display = 'none';
+      document.getElementById('data-card').style.display = 'block';
+      document.getElementById('back-btn').style.display = '';
+    }
+
+    function backToPausedStopwatch() {
+      document.getElementById('data-card').style.display = 'none';
+      document.getElementById('back-btn').style.display = 'none';
+      document.getElementById('stopwatch-card').style.display = 'block';
     }
 
     function finishStopwatch(autoStopped) {
       clearInterval(timerInterval);
       timerInterval = null;
+      startTimestamp = null;
+      isPaused = false;
       if (autoStopped) playEndBeeps();
 
       document.getElementById('stopwatch-card').style.display = 'none';
@@ -786,21 +920,24 @@
         return;
       }
 
-      buildDataPanel();
+      document.getElementById('back-btn').style.display = 'none';
+      buildDataPanel(false);
       document.getElementById('data-card').style.display = 'block';
     }
 
     // ─── Counter Buttons ──────────────────────────────────────────
     function handlePlus(e) {
-      if (e.type === 'click' && e.pointerType === '') return; // fired from touch already
+      if (e.type === 'click' && e.pointerType === '') return;
       if (e.type === 'touchstart') { e.preventDefault(); }
-
-      if (awaitingFinalPress) {
-        currentIntervalPress = 'plus';
-        commitFinalPress();
-        return;
-      }
       if (mode === 'interval') {
+        // Update the most recent record in-place; adjust counter for the change
+        if (records.length > 0) {
+          const last = records[records.length - 1];
+          if (last.press !== 'plus') {
+            counter++; // null→plus or minus→plus
+            last.press = 'plus';
+          }
+        }
         currentIntervalPress = 'plus';
       } else if (mode === 'frequency') {
         counter++;
@@ -812,30 +949,20 @@
     function handleMinus(e) {
       if (e.type === 'click' && e.pointerType === '') return;
       if (e.type === 'touchstart') { e.preventDefault(); }
-
-      if (awaitingFinalPress) {
-        currentIntervalPress = 'minus';
-        commitFinalPress();
-        return;
-      }
       if (mode === 'interval') {
+        // Update the most recent record in-place; adjust counter for the change
+        if (records.length > 0) {
+          const last = records[records.length - 1];
+          if (last.press === 'plus') {
+            counter--; // plus→minus
+          }
+          last.press = 'minus';
+        }
         currentIntervalPress = 'minus';
       } else if (mode === 'frequency') {
         records.push({ timestamp: formatTime(elapsedSeconds), press: 'minus' });
       }
       flashBtn('minus-btn');
-    }
-
-    function commitFinalPress() {
-      flashBtn(currentIntervalPress === 'plus' ? 'plus-btn' : 'minus-btn');
-      records.push({ label: pendingIntervalLabel, press: currentIntervalPress });
-      if (currentIntervalPress === 'plus') counter++;
-      pendingIntervalLabel = null;
-      awaitingFinalPress = false;
-      // Restore UI state before transitioning
-      document.getElementById('stop-btn').style.display = '';
-      document.getElementById('final-prompt').style.display = 'none';
-      finishStopwatch(false);
     }
 
     function flashBtn(id) {
@@ -899,11 +1026,18 @@
       elapsedSeconds = 0;
       counter = 0;
       records = [];
-      pendingIntervalLabel = null;
       currentIntervalPress = null;
-      awaitingFinalPress = false;
+      isPaused = false;
+      startTimestamp = null;
 
-      document.getElementById('stop-btn').style.display = '';
+      // Restore pause button to default state
+      const pauseBtn = document.getElementById('pause-resume-btn');
+      pauseBtn.textContent = '⏸ Pause';
+      pauseBtn.classList.remove('resuming');
+
+      document.getElementById('action-row').style.display = '';
+      document.getElementById('show-data-btn').style.display = 'none';
+      document.getElementById('back-btn').style.display = 'none';
       document.getElementById('final-prompt').style.display = 'none';
       document.getElementById('setup-card').style.display = 'block';
       document.getElementById('stopwatch-card').style.display = 'none';
