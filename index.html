@@ -119,6 +119,8 @@
 
     .input-row input[type="text"] {
       flex: 1;
+      min-width: 0;
+      /* allows flex item to shrink below intrinsic min on small screens */
       background: var(--surface2);
       border: 1.5px solid var(--border);
       border-radius: var(--radius-sm);
